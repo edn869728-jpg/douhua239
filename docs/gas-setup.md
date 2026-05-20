@@ -28,7 +28,7 @@ This setup uses GitHub + GAS directly and does **not** require Cloudflare.
    - **Who has access**: Anyone (or your required access policy)
 6. Deploy and copy the **Web app URL**.
 
-> When updating script code later, redeploy a new version and keep the latest Web app URL in GitHub secrets.
+> When updating script code, redeploy a new version. Usually the Web app URL stays the same for the same deployment, so only update `GAS_WEBAPP_URL` if you create a different deployment URL.
 
 ## 2) Set GitHub repository secrets
 
@@ -52,9 +52,9 @@ Use the same shared secret in your GAS script validation logic.
 ## Minimal `Code.gs` example
 
 ```javascript
-const SHARED_SECRET = 'replace-with-your-secret';
-
 function doPost(e) {
+  const sharedSecret = PropertiesService.getScriptProperties().getProperty('GAS_SHARED_SECRET');
+
   let data = {};
   try {
     data = JSON.parse((e.postData && e.postData.contents) || '{}');
@@ -62,7 +62,11 @@ function doPost(e) {
     return jsonResponse({ ok: false, error: 'invalid_json' });
   }
 
-  if (!data.secret || data.secret !== SHARED_SECRET) {
+  if (!sharedSecret) {
+    return jsonResponse({ ok: false, error: 'server_misconfigured' });
+  }
+
+  if (!data.secret || data.secret !== sharedSecret) {
     return jsonResponse({ ok: false, error: 'unauthorized' });
   }
 
@@ -89,4 +93,4 @@ function jsonResponse(payload) {
 }
 ```
 
-For production, store the shared secret outside source code (for example, Script Properties) and compare against that value.
+Set Script Property `GAS_SHARED_SECRET` in Apps Script project settings, and use the same value in the GitHub secret `GAS_SHARED_SECRET`.
