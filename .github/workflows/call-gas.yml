@@ -1,0 +1,73 @@
+name: Call Google Apps Script Web App
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: Optional message sent to GAS
+        required: false
+        default: ""
+
+jobs:
+  call-gas:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GAS_WEBAPP_URL: ${{ secrets.GAS_WEBAPP_URL }}
+      GAS_SHARED_SECRET: ${{ secrets.GAS_SHARED_SECRET }}
+      INPUT_MESSAGE: ${{ github.event.inputs.message }}
+    steps:
+      - name: Validate required secrets
+        run: |
+          if [ -z "$GAS_WEBAPP_URL" ]; then
+            echo "::error::Missing required repository secret: GAS_WEBAPP_URL"
+            exit 1
+          fi
+
+          if [ -z "$GAS_SHARED_SECRET" ]; then
+            echo "::error::Missing required repository secret: GAS_SHARED_SECRET"
+            exit 1
+          fi
+
+      - name: Send payload to GAS Web App
+        run: |
+          payload="$(jq -n \
+            --arg secret "$GAS_SHARED_SECRET" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg actor "$GITHUB_ACTOR" \
+            --arg ref "$GITHUB_REF" \
+            --arg sha "$GITHUB_SHA" \
+            --arg workflow "$GITHUB_WORKFLOW" \
+            --arg runId "$GITHUB_RUN_ID" \
+            --arg runNumber "$GITHUB_RUN_NUMBER" \
+            --arg eventName "$GITHUB_EVENT_NAME" \
+            --arg message "$INPUT_MESSAGE" \
+            '{
+              secret: $secret,
+              repository: $repository,
+              actor: $actor,
+              ref: $ref,
+              sha: $sha,
+              workflow: $workflow,
+              run_id: $runId,
+              run_number: $runNumber,
+              event_name: $eventName,
+              message: $message
+            }')"
+
+          http_code="$(curl -sS -o /tmp/gas-response.json -w '%{http_code}' \
+            -X POST "$GAS_WEBAPP_URL" \
+            -H 'Content-Type: application/json' \
+            --data "$payload")"
+
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "::error::GAS request failed with HTTP status $http_code"
+            echo "Response body:"
+            cat /tmp/gas-response.json
+            exit 1
+          fi
+
+          echo "GAS call succeeded with HTTP status $http_code"
+          echo "Response body:"
+          cat /tmp/gas-response.json
