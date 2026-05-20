@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>逗花•豆花｜桌邊點餐</title>
+  <link rel="stylesheet" href="./styles.css?v=21">
+</head>
+<body class="order-page">
+  <div class="app">
+    <header>
+      <div class="head">
+        <img id="logo" class="logo">
+        <div id="logoFallback" class="logo-fallback">🍨</div>
+        <div>
+          <div class="title" id="shopName">逗花•豆花</div>
+          <div class="sub">桌邊線上點餐</div>
+          <div class="pill" id="tableLabel">桌號</div>
+        </div>
+      </div>
+    </header>
+    <main class="wrap">
+      <div id="closedBox"></div>
+      <div class="notice">內用低消每人 $40，120 公分以下孩童免低消。商品預設為 1 份，數量最低為 1，可直接按加入。送出後會進入店家接單，可再繼續加點。</div>
+      <div id="takeoutBox"></div>
+      <div id="openOrdersBox"></div>
+      <div id="menuBox" class="empty">讀取菜單中...</div>
+    </main>
+  </div>
+
+  <section class="cart">
+    <div class="cart-top">
+      <div>🛒 準備送出 <span id="cartCount"></span></div>
+      <div id="cartTotal">$0</div>
+    </div>
+    <div id="cartList" class="cart-list"></div>
+    <div class="cart-buttons">
+      <button class="btn-soft" onclick="clearCartUi(event)">清空</button>
+      <button class="btn-main" id="submitBtn" onclick="submitOrder(event)">確認送出</button>
+    </div>
+  </section>
+
+  <script src="./config.js?v=21"></script>
+  <script src="./api.js?v=21"></script>
+  <script src="./order.js?v=21"></script>
+</body>
+</html>

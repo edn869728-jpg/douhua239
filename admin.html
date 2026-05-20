@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>逗花•豆花｜店家管理</title>
+  <link rel="stylesheet" href="./styles.css?v=21">
+</head>
+<body>
+  <div id="bigAlert" class="big-alert">🔔 有新加點</div>
+  <div class="app">
+    <header>
+      <div class="title">逗花•豆花｜店家管理</div>
+      <div class="sub" id="pageTitle">接單後台</div>
+    </header>
+
+    <div class="fab">
+      <button class="fab-main" onclick="toggleFab()">☰</button>
+      <div class="fab-menu" id="fabMenu">
+        <button class="fab-sub" id="fabMenuBtn" onclick="switchPage('menu')">🍨</button>
+        <button class="fab-sub" id="fabOrdersBtn" onclick="switchPage('orders')">📋</button>
+        <button class="fab-sub" id="fabHistoryBtn" onclick="switchPage('history')">🧾</button>
+        <button class="fab-sub" id="fabReportsBtn" onclick="switchPage('reports')">📊</button>
+      </div>
+    </div>
+
+    <main class="wrap">
+      <section id="pageMenu" class="page">
+        <div class="card">
+          <div class="section-title">🍨 新增 / 修改菜單</div>
+          <input type="hidden" id="editId">
+          <label>分類</label>
+          <select id="category">
+            <option>🌾 經典古早味</option>
+            <option>☀️ 夏季限定豆花</option>
+            <option>❄️ 冬季限定豆花</option>
+            <option>🍌 創意水果豆花</option>
+            <option>🥤 冰沙｜夏季平日</option>
+            <option>🥤 冰沙｜四季平日</option>
+            <option>🥤 冰沙｜冬季平日</option>
+            <option>🍋 其他品項</option>
+          </select>
+          <label>品名</label><input id="name">
+          <div class="row">
+            <div><label>價格</label><input id="price" type="number"></div>
+            <div><label>排序</label><input id="sort" type="number"></div>
+          </div>
+          <label>供應規則</label>
+          <select id="supplyRule">
+            <option>全年供應</option>
+            <option>夏季限定</option>
+            <option>冬季限定</option>
+            <option>夏季平日限定</option>
+            <option>四季平日限定</option>
+            <option>冬季平日限定</option>
+            <option>依現場供應</option>
+          </select>
+          <label>圖片網址</label><input id="imageUrl">
+          <label>備註</label><textarea id="note"></textarea>
+          <div class="section-title">客製化標籤</div>
+          <label>甜度</label><div id="sweetOptions" class="actions"></div>
+          <label>冰量 / 溫度</label><div id="tempOptions" class="actions"></div>
+          <label>其他標籤，可用逗號分隔</label><input id="customOptions">
+          <div class="actions">
+            <button class="btn-ok" onclick="saveMenuItemUi()">儲存</button>
+            <button class="btn-soft" onclick="clearForm()">清空</button>
+            <button class="btn-main" onclick="loadMenu()">重新整理</button>
+          </div>
+        </div>
+        <select id="menuFilter" onchange="renderMenuList()">
+          <option value="all">全部</option>
+          <option value="active">上架</option>
+          <option value="inactive">下架</option>
+        </select>
+        <div id="menuBox" class="empty">讀取中...</div>
+      </section>
+
+      <section id="pageOrders" class="page">
+        <div class="card">
+          <div class="section-title">📋 接單</div>
+          <button class="btn-main" onclick="loadOrders(true)">重新整理</button>
+          <div class="meta">此頁每 3 秒自動重新讀取訂單。</div>
+        </div>
+        <div id="ordersBox" class="empty">讀取中...</div>
+      </section>
+
+      <section id="pageHistory" class="page">
+        <div class="card"><div class="section-title">🧾 今日紀錄</div><button class="btn-main" onclick="loadHistory()">重新整理</button></div>
+        <div id="historyBox"></div>
+      </section>
+
+      <section id="pageReports" class="page">
+        <div class="card">
+          <div class="section-title">📊 報表</div>
+          <label>LINE Pay 抽成率 %</label><input id="feeRate" type="number" step="0.01">
+          <label>LINE Pay 固定手續費</label><input id="feeFixed" type="number">
+          <button class="btn-ok" onclick="savePaymentSettings()">儲存設定</button>
+        </div>
+        <div class="card"><button class="btn-main" onclick="loadReports()">重新整理報表</button></div>
+        <div id="reportsBox"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./config.js?v=21"></script>
+  <script src="./api.js?v=21"></script>
+  <script src="./admin.js?v=21"></script>
+</body>
+</html>
