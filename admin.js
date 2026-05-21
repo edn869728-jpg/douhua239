@@ -125,13 +125,15 @@ function renderMenuList() {
   if (filter === "active") list = list.filter(active);
   if (filter === "inactive") list = list.filter(x => !active(x));
 
+  const menuBox = document.getElementById("menuBox");
   if (!list.length) {
     const msg = menuData.length === 0
       ? '<div class="empty">後端沒有回傳任何菜單資料</div>'
       : '<div class="empty">此篩選條件下沒有品項</div>';
-    document.getElementById("menuBox").innerHTML = msg;
+    menuBox.innerHTML = msg;
   } else {
-    document.getElementById("menuBox").innerHTML = list.map(renderMenu).join("");
+    menuBox.classList.remove("empty");
+    menuBox.innerHTML = list.map(renderMenu).join("");
   }
 }
 
@@ -268,9 +270,12 @@ async function loadOrders(force) {
     lastVersion = newVersion;
 
     const tables = d.tables || [];
-    ordersBox.innerHTML = tables.length
-      ? tables.map(renderTable).join("")
-      : '<div class="empty">目前沒有待處理訂單</div>';
+    if (tables.length) {
+      ordersBox.classList.remove("empty");
+      ordersBox.innerHTML = tables.map(renderTable).join("");
+    } else {
+      ordersBox.innerHTML = '<div class="empty">目前沒有待處理訂單</div>';
+    }
 
     if (!force && changed && newVersion) {
       bigAlert.textContent = "🔔 有新訂單 / 新加點";
