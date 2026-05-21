@@ -89,10 +89,22 @@ function saveTakeoutLocal() {
   return info;
 }
 
+function requireTakeoutPhone() {
+  if (TABLE_NO !== "TO") return true;
+  const info = saveTakeoutLocal();
+  if (!info.phone) {
+    alert("外帶請輸入電話號碼");
+    const phoneEl = document.getElementById("takeoutPhone");
+    if (phoneEl) phoneEl.focus();
+    return false;
+  }
+  return true;
+}
+
 async function syncTakeoutInfo(silent = true) {
   if (TABLE_NO !== "TO") return { ok: true };
   const info = saveTakeoutLocal();
-  if (!info.phone) return { ok: true, phone: "", pickup: info.pickup || "現場等候" };
+  if (!info.phone) return { ok: false, message: "外帶請輸入電話號碼" };
 
   try {
     const res = await apiPost("updateSessionInfo", {
@@ -127,9 +139,9 @@ function renderTakeoutBox() {
   box.innerHTML = `
     <div class="card takeout-box">
       <div class="section-title">🥡 外帶資料</div>
-      <div class="meta">手機可填可不填；取餐時間不填就是「現場等候」。</div>
+      <div class="meta">手機號碼必填；取餐時間不填就是「現場等候」。</div>
       <label>手機號碼</label>
-      <input id="takeoutPhone" value="${attr(phone)}" placeholder="09xxxxxxxx，可不填">
+      <input id="takeoutPhone" value="${attr(phone)}" placeholder="09xxxxxxxx，必填">
       <label>預計取餐時間</label>
       <input id="pickupTime" value="${attr(pickupValue)}" placeholder="不填＝現場等候，例如 15:30">
       <button class="btn-main" onclick="saveTakeoutInfo()">儲存外帶資料</button>
@@ -137,6 +149,7 @@ function renderTakeoutBox() {
 }
 
 async function saveTakeoutInfo() {
+  if (!requireTakeoutPhone()) return;
   await syncTakeoutInfo(false);
 }
 
@@ -262,6 +275,7 @@ async function addDraftItem(id) {
     return;
   }
 
+  if (!requireTakeoutPhone()) return;
   const takeoutInfo = TABLE_NO === "TO" ? saveTakeoutLocal() : { phone: "", pickup: "" };
 
   const btn = document.getElementById("addbtn-" + id);
@@ -479,6 +493,7 @@ async function submitOrder(e) {
     return;
   }
 
+  if (!requireTakeoutPhone()) return;
   const takeoutInfo = TABLE_NO === "TO" ? saveTakeoutLocal() : { phone: "", pickup: "" };
 
   if (!await showConfirm("確定送出訂單？")) return;
