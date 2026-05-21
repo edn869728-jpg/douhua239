@@ -290,6 +290,16 @@ async function loadOrders(force) {
   }
 }
 
+function takeoutInfoHtml(order) {
+  const phone = cleanText(order.customer_phone || order.phone || "");
+  const pickup = cleanText(order.pickup_time || order.pickupTime || "");
+  if (!phone && !pickup) return "";
+  const lines = [];
+  if (phone) lines.push("電話：" + phone);
+  if (pickup) lines.push("取餐：" + pickup);
+  return `<div class="meta" style="font-weight:950;color:#7a4a22">${esc(lines.join("｜"))}</div>`;
+}
+
 function renderTable(table) {
   return `
     <div class="card ${table.all_served ? "all-served" : ""}">
@@ -301,6 +311,7 @@ function renderTable(table) {
         <div class="card ${order.batch_type === "add" ? "add-batch" : "new-batch"}">
           <div class="batch-title">${esc(order.batch_title || order.batch_label || order.order_id)}</div>
           <div class="meta">${esc(order.created_at || "")}</div>
+          ${takeoutInfoHtml(order)}
           ${(order.items || []).map(item => renderItemLine(order.order_id, item)).join("")}
         </div>
       `).join("")}
