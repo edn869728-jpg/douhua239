@@ -371,8 +371,8 @@ async function checkout(tableNo, method, btn) {
 }
 
 function historyStatusLabel(order) {
-  const status = String(order && order.status ? order.status : "").toLowerCase();
-  if (status === "paid" || (order && order.paid_at)) return "已完成";
+  const status = String(order?.status ?? "").toLowerCase();
+  if (status === "paid" || order?.paid_at) return "已完成";
   if (status === "served") return "待結單";
   return "待製作";
 }
