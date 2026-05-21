@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>逗花•豆花｜店家管理</title>
-  <link rel="stylesheet" href="./styles.css?v=21">
+  <link rel="stylesheet" href="./styles.css?v=22">
 </head>
 <body>
   <div id="bigAlert" class="big-alert">🔔 有新加點</div>
@@ -62,9 +62,9 @@
           <label>冰量 / 溫度</label><div id="tempOptions" class="actions"></div>
           <label>其他標籤，可用逗號分隔</label><input id="customOptions">
           <div class="actions">
-            <button class="btn-ok" onclick="saveMenuItemUi()">儲存</button>
+            <button id="saveMenuBtn" class="btn-ok" onclick="saveMenuItemUi()">儲存</button>
             <button class="btn-soft" onclick="clearForm()">清空</button>
-            <button class="btn-main" onclick="loadMenu()">重新整理</button>
+            <button id="reloadMenuBtn" class="btn-main" onclick="loadMenu()">重新整理</button>
           </div>
         </div>
         <select id="menuFilter" onchange="renderMenuList()">
@@ -72,20 +72,21 @@
           <option value="active">上架</option>
           <option value="inactive">下架</option>
         </select>
+        <div id="menuStatus" class="menu-status"></div>
         <div id="menuBox" class="empty">讀取中...</div>
       </section>
 
       <section id="pageOrders" class="page">
         <div class="card">
           <div class="section-title">📋 接單</div>
-          <button class="btn-main" onclick="loadOrders(true)">重新整理</button>
+          <button id="reloadOrdersBtn" class="btn-main" onclick="loadOrders(true)">重新整理</button>
           <div class="meta">此頁每 3 秒自動重新讀取訂單。</div>
         </div>
         <div id="ordersBox" class="empty">讀取中...</div>
       </section>
 
       <section id="pageHistory" class="page">
-        <div class="card"><div class="section-title">🧾 今日紀錄</div><button class="btn-main" onclick="loadHistory()">重新整理</button></div>
+        <div class="card"><div class="section-title">🧾 今日紀錄</div><button id="reloadHistoryBtn" class="btn-main" onclick="loadHistory()">重新整理</button></div>
         <div id="historyBox"></div>
       </section>
 
@@ -94,16 +95,16 @@
           <div class="section-title">📊 報表</div>
           <label>LINE Pay 抽成率 %</label><input id="feeRate" type="number" step="0.01">
           <label>LINE Pay 固定手續費</label><input id="feeFixed" type="number">
-          <button class="btn-ok" onclick="savePaymentSettings()">儲存設定</button>
+          <button id="savePaymentBtn" class="btn-ok" onclick="savePaymentSettings()">儲存設定</button>
         </div>
-        <div class="card"><button class="btn-main" onclick="loadReports()">重新整理報表</button></div>
+        <div class="card"><button id="reloadReportsBtn" class="btn-main" onclick="loadReports()">重新整理報表</button></div>
         <div id="reportsBox"></div>
       </section>
     </main>
   </div>
 
-  <script src="./config.js?v=21"></script>
-  <script src="./api.js?v=21"></script>
-  <script src="./admin.js?v=21"></script>
+  <script src="./config.js?v=22"></script>
+  <script src="./api.js?v=22"></script>
+  <script src="./admin.js?v=22"></script>
 </body>
 </html>

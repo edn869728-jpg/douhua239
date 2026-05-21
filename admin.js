@@ -80,15 +80,38 @@ function setChecked(cls, csv) {
 }
 
 async function loadMenu() {
-  const d = await apiGet("getMenuManagerData", {}, 45000);
+  const menuBox = document.getElementById("menuBox");
+  const btn = document.getElementById("reloadMenuBtn");
 
-  if (!d || d.ok === false) {
-    document.getElementById("menuBox").innerHTML = fail(d);
-    return;
+  menuBox.innerHTML = '<div class="empty">讀取中...</div>';
+  setMenuStatus("讀取中...", "");
+  if (btn) { btn.disabled = true; btn.textContent = "讀取中..."; }
+
+  try {
+    const d = await apiGet("getMenuManagerData", {}, 45000);
+
+    if (!d || d.ok === false) {
+      menuBox.innerHTML = fail(d);
+      setMenuStatus("讀取失敗", "error");
+      return;
+    }
+
+    menuData = (d.menu || []).map(normalizeMenuItem);
+    setMenuStatus("已載入 " + menuData.length + " 筆，更新時間：" + new Date().toLocaleTimeString("zh-TW"));
+    renderMenuList();
+  } catch (e) {
+    menuBox.innerHTML = fail({ message: e && e.message ? e.message : String(e) });
+    setMenuStatus("讀取失敗", "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "重新整理"; }
   }
+}
 
-  menuData = (d.menu || []).map(normalizeMenuItem);
-  renderMenuList();
+function setMenuStatus(msg, cls) {
+  const el = document.getElementById("menuStatus");
+  if (!el) return;
+  el.textContent = msg;
+  el.className = "menu-status" + (cls ? " menu-status-" + cls : "");
 }
 
 function active(item) {
@@ -102,9 +125,14 @@ function renderMenuList() {
   if (filter === "active") list = list.filter(active);
   if (filter === "inactive") list = list.filter(x => !active(x));
 
-  document.getElementById("menuBox").innerHTML = list.length
-    ? list.map(renderMenu).join("")
-    : '<div class="empty">沒有品項</div>';
+  if (!list.length) {
+    const msg = menuData.length === 0
+      ? '<div class="empty">後端沒有回傳任何菜單資料</div>'
+      : '<div class="empty">此篩選條件下沒有品項</div>';
+    document.getElementById("menuBox").innerHTML = msg;
+  } else {
+    document.getElementById("menuBox").innerHTML = list.map(renderMenu).join("");
+  }
 }
 
 function renderMenu(item) {
@@ -118,7 +146,7 @@ function renderMenu(item) {
       <div class="price">${money(item.price)}</div>
       <div class="actions">
         <button class="btn-soft" onclick="editMenu('${attr(item.id)}')">修改</button>
-        <button class="${isActive ? "btn-danger" : "btn-ok"}" onclick="toggleActive('${attr(item.id)}')">${isActive ? "下架" : "上架"}</button>
+        <button class="${isActive ? "btn-danger" : "btn-ok"}" onclick="toggleActive('${attr(item.id)}', this)">${isActive ? "下架" : "上架"}</button>
       </div>
     </div>`;
 }
@@ -164,17 +192,26 @@ async function saveMenuItemUi() {
     takeout: oldItem ? oldItem.takeout : true
   };
 
-  if (!p.name) return alert("請輸入品名");
+  if (!p.name) { showToast("請輸入品名"); return; }
 
-  const r = await apiPost("saveMenuItem", p, 45000);
-  if (!r || r.ok === false) {
-    alert("儲存失敗：" + (r && r.message ? r.message : ""));
-    return;
+  const btn = document.getElementById("saveMenuBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "儲存中..."; }
+
+  try {
+    const r = await apiPost("saveMenuItem", p, 45000);
+    if (!r || r.ok === false) {
+      showToast("儲存失敗：" + (r && r.message ? r.message : ""));
+      return;
+    }
+
+    showToast("✅ 已儲存");
+    clearForm();
+    loadMenu();
+  } catch (e) {
+    showToast("儲存失敗：" + (e && e.message ? e.message : String(e)));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "儲存"; }
   }
-
-  alert("已儲存");
-  clearForm();
-  loadMenu();
 }
 
 function clearForm() {
@@ -187,43 +224,64 @@ function clearForm() {
   setChecked("tempCk", "");
 }
 
-async function toggleActive(id) {
+async function toggleActive(id, btn) {
   const item = menuData.find(x => String(x.id) === String(id));
   if (!await showConfirm("確定" + (active(item) ? "下架" : "上架") + "？")) return;
 
-  const r = await apiPost("toggleMenuActive", { id }, 45000);
-  if (!r || r.ok === false) {
-    alert("更新失敗：" + (r && r.message ? r.message : ""));
-    return;
-  }
+  const origText = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "處理中..."; }
 
-  loadMenu();
+  try {
+    const r = await apiPost("toggleMenuActive", { id }, 45000);
+    if (!r || r.ok === false) {
+      showToast("更新失敗：" + (r && r.message ? r.message : ""));
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+      return;
+    }
+
+    loadMenu();
+  } catch (e) {
+    showToast("更新失敗：" + (e && e.message ? e.message : String(e)));
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
 }
 
 async function loadOrders(force) {
-  if (force) document.getElementById("ordersBox").innerHTML = '<div class="empty">讀取中...</div>';
+  const ordersBox = document.getElementById("ordersBox");
+  const btn = document.getElementById("reloadOrdersBtn");
 
-  const d = await apiGet("getOpenOrders", {}, 45000);
-  if (!d || d.ok === false) {
-    document.getElementById("ordersBox").innerHTML = fail(d);
-    return;
+  if (force) {
+    ordersBox.innerHTML = '<div class="empty">讀取中...</div>';
+    if (btn) { btn.disabled = true; btn.textContent = "讀取中..."; }
   }
 
-  const oldVersion = String(lastVersion || "");
-  const newVersion = String(d.version || "");
-  const changed = newVersion !== oldVersion;
-  lastVersion = newVersion;
+  try {
+    const d = await apiGet("getOpenOrders", {}, 45000);
+    if (!d || d.ok === false) {
+      ordersBox.innerHTML = fail(d);
+      return;
+    }
 
-  const tables = d.tables || [];
-  document.getElementById("ordersBox").innerHTML = tables.length
-    ? tables.map(renderTable).join("")
-    : '<div class="empty">目前沒有待處理訂單</div>';
+    const oldVersion = String(lastVersion || "");
+    const newVersion = String(d.version || "");
+    const changed = newVersion !== oldVersion;
+    lastVersion = newVersion;
 
-  if (!force && changed && newVersion) {
-    bigAlert.textContent = "🔔 有新訂單 / 新加點";
-    bigAlert.classList.add("show");
-    showToast("🔔 有新訂單 / 新加點");
-    setTimeout(() => bigAlert.classList.remove("show"), 2500);
+    const tables = d.tables || [];
+    ordersBox.innerHTML = tables.length
+      ? tables.map(renderTable).join("")
+      : '<div class="empty">目前沒有待處理訂單</div>';
+
+    if (!force && changed && newVersion) {
+      bigAlert.textContent = "🔔 有新訂單 / 新加點";
+      bigAlert.classList.add("show");
+      showToast("🔔 有新訂單 / 新加點");
+      setTimeout(() => bigAlert.classList.remove("show"), 2500);
+    }
+  } catch (e) {
+    ordersBox.innerHTML = fail({ message: e && e.message ? e.message : String(e) });
+  } finally {
+    if (force && btn) { btn.disabled = false; btn.textContent = "重新整理"; }
   }
 }
 
@@ -242,8 +300,8 @@ function renderTable(table) {
         </div>
       `).join("")}
       <div class="actions">
-        <button class="btn-ok" onclick="checkout('${attr(table.table_no)}', 'cash')">💵 現金結單</button>
-        <button class="btn-main" onclick="checkout('${attr(table.table_no)}', 'line_pay')">LINE Pay 結單</button>
+        <button class="btn-ok" onclick="checkout('${attr(table.table_no)}', 'cash', this)">💵 現金結單</button>
+        <button class="btn-main" onclick="checkout('${attr(table.table_no)}', 'line_pay', this)">LINE Pay 結單</button>
       </div>
     </div>`;
 }
@@ -257,7 +315,7 @@ function renderItemLine(orderId, item) {
   const action = served
     ? "✅"
     : rowId
-      ? `<button class="btn-soft" onclick="serve('${attr(orderId)}', '${attr(rowId)}')">出餐</button>`
+      ? `<button class="btn-soft" onclick="serve('${attr(orderId)}', '${attr(rowId)}', this)">出餐</button>`
       : `<span class="meta" style="color:#d9534f;font-weight:900">缺少明細ID</span>`;
 
   return `
@@ -267,83 +325,130 @@ function renderItemLine(orderId, item) {
     </div>`;
 }
 
-async function serve(orderId, itemRowId) {
-  const r = await apiPost("serveOrderItem", { orderId, itemRowId }, 45000);
-  if (!r || r.ok === false) {
-    alert("失敗：" + (r && r.message ? r.message : ""));
-    return;
+async function serve(orderId, itemRowId, btn) {
+  const origText = btn ? btn.textContent : "出餐";
+  if (btn) { btn.disabled = true; btn.textContent = "出餐中..."; }
+
+  try {
+    const r = await apiPost("serveOrderItem", { orderId, itemRowId }, 45000);
+    if (!r || r.ok === false) {
+      showToast("出餐失敗：" + (r && r.message ? r.message : ""));
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+      return;
+    }
+    loadOrders(false);
+  } catch (e) {
+    showToast("出餐失敗：" + (e && e.message ? e.message : String(e)));
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
-  loadOrders(false);
 }
 
-async function checkout(tableNo, method) {
+async function checkout(tableNo, method, btn) {
   if (!await showConfirm("確定結單？")) return;
 
-  const r = await apiPost("checkoutTable", { tableNo, paymentMethod: method }, 45000);
-  if (!r || r.ok === false) {
-    alert("結單失敗：" + (r && r.message ? r.message : ""));
-    return;
-  }
+  const origText = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "結單中..."; }
 
-  alert("已結單\n總：" + money(r.gross_amount) + "\n手續費：" + money(r.fee_amount) + "\n淨：" + money(r.net_amount));
-  loadOrders(true);
+  try {
+    const r = await apiPost("checkoutTable", { tableNo, paymentMethod: method }, 45000);
+    if (!r || r.ok === false) {
+      showToast("結單失敗：" + (r && r.message ? r.message : ""));
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+      return;
+    }
+
+    showToast(`✅ 已結單　總 ${money(r.gross_amount)}　手續費 ${money(r.fee_amount)}　淨 ${money(r.net_amount)}`);
+    loadOrders(true);
+  } catch (e) {
+    showToast("結單失敗：" + (e && e.message ? e.message : String(e)));
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
 }
 
 async function loadHistory() {
-  const d = await apiGet("getTodayHistory", {}, 45000);
-  if (!d || d.ok === false) {
-    historyBox.innerHTML = fail(d);
-    return;
-  }
+  const btn = document.getElementById("reloadHistoryBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "讀取中..."; }
+  historyBox.innerHTML = '<div class="empty">讀取中...</div>';
 
-  historyBox.innerHTML = (d.orders || []).length
-    ? (d.orders || []).map(order => `
-      <div class="card">
-        <span class="badge">${esc(order.table_label)}</span> ${esc(order.payment_label || order.status_label)}
-        <div class="meta">${esc(order.created_at || "")}</div>
-        <div class="items">${esc(order.items_text || "")}</div>
-        <div class="price">總 ${money(order.gross_amount || order.total_amount)}｜淨 ${money(order.net_amount || order.total_amount)}</div>
-      </div>`).join("")
-    : '<div class="empty">今天還沒有紀錄</div>';
+  try {
+    const d = await apiGet("getTodayHistory", {}, 45000);
+    if (!d || d.ok === false) {
+      historyBox.innerHTML = fail(d);
+      return;
+    }
+
+    historyBox.innerHTML = (d.orders || []).length
+      ? (d.orders || []).map(order => `
+        <div class="card">
+          <span class="badge">${esc(order.table_label)}</span> ${esc(order.payment_label || order.status_label)}
+          <div class="meta">${esc(order.created_at || "")}</div>
+          <div class="items">${esc(order.items_text || "")}</div>
+          <div class="price">總 ${money(order.gross_amount || order.total_amount)}｜淨 ${money(order.net_amount || order.total_amount)}</div>
+        </div>`).join("")
+      : '<div class="empty">今天還沒有紀錄</div>';
+  } catch (e) {
+    historyBox.innerHTML = fail({ message: e && e.message ? e.message : String(e) });
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "重新整理"; }
+  }
 }
 
 async function loadReports() {
-  const d = await apiGet("getReports", {}, 45000);
-  if (!d || d.ok === false) {
-    reportsBox.innerHTML = fail(d);
-    return;
+  const btn = document.getElementById("reloadReportsBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "讀取中..."; }
+  reportsBox.innerHTML = '<div class="empty">讀取中...</div>';
+
+  try {
+    const d = await apiGet("getReports", {}, 45000);
+    if (!d || d.ok === false) {
+      reportsBox.innerHTML = fail(d);
+      return;
+    }
+
+    feeRate.value = d.settings.line_pay_fee_rate || 0;
+    feeFixed.value = d.settings.line_pay_fixed_fee || 0;
+
+    const r = d.today || {};
+    reportsBox.innerHTML = `
+      <div class="card">
+        <div class="report-grid">
+          <div class="report-box">今日總營業額<div class="report-num">${money(r.gross)}</div></div>
+          <div class="report-box">今日淨金額<div class="report-num">${money(r.net)}</div></div>
+          <div class="report-box">現金<div class="report-num">${money(r.cash)}</div></div>
+          <div class="report-box">LINE Pay淨額<div class="report-num">${money(r.line_pay_net)}</div></div>
+          <div class="report-box">手續費<div class="report-num">${money(r.line_pay_fee)}</div></div>
+          <div class="report-box">訂單數<div class="report-num">${r.count || 0}</div></div>
+        </div>
+      </div>`;
+  } catch (e) {
+    reportsBox.innerHTML = fail({ message: e && e.message ? e.message : String(e) });
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "重新整理報表"; }
   }
-
-  feeRate.value = d.settings.line_pay_fee_rate || 0;
-  feeFixed.value = d.settings.line_pay_fixed_fee || 0;
-
-  const r = d.today || {};
-  reportsBox.innerHTML = `
-    <div class="card">
-      <div class="report-grid">
-        <div class="report-box">今日總營業額<div class="report-num">${money(r.gross)}</div></div>
-        <div class="report-box">今日淨金額<div class="report-num">${money(r.net)}</div></div>
-        <div class="report-box">現金<div class="report-num">${money(r.cash)}</div></div>
-        <div class="report-box">LINE Pay淨額<div class="report-num">${money(r.line_pay_net)}</div></div>
-        <div class="report-box">手續費<div class="report-num">${money(r.line_pay_fee)}</div></div>
-        <div class="report-box">訂單數<div class="report-num">${r.count || 0}</div></div>
-      </div>
-    </div>`;
 }
 
 async function savePaymentSettings() {
-  const r = await apiPost("savePaymentSettings", {
-    line_pay_fee_rate: Number(feeRate.value || 0),
-    line_pay_fixed_fee: Number(feeFixed.value || 0)
-  }, 45000);
+  const btn = document.getElementById("savePaymentBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "儲存中..."; }
 
-  if (!r || r.ok === false) {
-    alert("儲存失敗");
-    return;
+  try {
+    const r = await apiPost("savePaymentSettings", {
+      line_pay_fee_rate: Number(feeRate.value || 0),
+      line_pay_fixed_fee: Number(feeFixed.value || 0)
+    }, 45000);
+
+    if (!r || r.ok === false) {
+      showToast("儲存失敗：" + (r && r.message ? r.message : ""));
+      return;
+    }
+
+    showToast("✅ 已儲存");
+    loadReports();
+  } catch (e) {
+    showToast("儲存失敗：" + (e && e.message ? e.message : String(e)));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "儲存設定"; }
   }
-
-  alert("已儲存");
-  loadReports();
 }
 
 function fail(d) {
