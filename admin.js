@@ -370,6 +370,13 @@ async function checkout(tableNo, method, btn) {
   }
 }
 
+function historyStatusLabel(order) {
+  const status = String(order?.status ?? "").toLowerCase();
+  if (status === "paid" || order?.paid_at) return "已完成";
+  if (status === "served") return "待結單";
+  return "待製作";
+}
+
 async function loadHistory() {
   const btn = document.getElementById("reloadHistoryBtn");
   if (btn) { btn.disabled = true; btn.textContent = "讀取中..."; }
@@ -385,7 +392,7 @@ async function loadHistory() {
     historyBox.innerHTML = (d.orders || []).length
       ? (d.orders || []).map(order => `
         <div class="card">
-          <span class="badge">${esc(order.table_label)}</span> ${esc(order.payment_label || order.status_label)}
+          <span class="badge">${esc(order.table_label)}</span> ${esc(historyStatusLabel(order))}
           <div class="meta">${esc(order.created_at || "")}</div>
           <div class="items">${esc(order.items_text || "")}</div>
           <div class="price">總 ${money(order.gross_amount || order.total_amount)}｜淨 ${money(order.net_amount || order.total_amount)}</div>
