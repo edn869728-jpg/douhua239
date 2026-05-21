@@ -357,7 +357,7 @@ async function checkout(tableNo, method, btn) {
       return;
     }
 
-    showToast("✅ 已結單　總 " + money(r.gross_amount) + "　手續費 " + money(r.fee_amount) + "　淨 " + money(r.net_amount));
+    showToast(`✅ 已結單　總 ${money(r.gross_amount)}　手續費 ${money(r.fee_amount)}　淨 ${money(r.net_amount)}`);
     loadOrders(true);
   } catch (e) {
     showToast("結單失敗：" + (e && e.message ? e.message : String(e)));
