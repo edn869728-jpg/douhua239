@@ -69,6 +69,50 @@ function restartSession() {
   loadData(true);
 }
 
+function getTakeoutInfoFromUi() {
+  const phoneEl = document.getElementById("takeoutPhone");
+  const pickupEl = document.getElementById("pickupTime");
+  const phone = phoneEl ? phoneEl.value.trim() : (localStorage.getItem(LS_PHONE) || "");
+  const pickupRaw = pickupEl ? pickupEl.value.trim() : (localStorage.getItem(LS_PICKUP) || "");
+  return {
+    phone,
+    pickup: pickupRaw || "現場等候"
+  };
+}
+
+function saveTakeoutLocal() {
+  if (TABLE_NO !== "TO") return { phone: "", pickup: "" };
+  const info = getTakeoutInfoFromUi();
+  if (info.phone) localStorage.setItem(LS_PHONE, info.phone);
+  else localStorage.removeItem(LS_PHONE);
+  localStorage.setItem(LS_PICKUP, info.pickup || "現場等候");
+  return info;
+}
+
+async function syncTakeoutInfo(silent = true) {
+  if (TABLE_NO !== "TO") return { ok: true };
+  const info = saveTakeoutLocal();
+  if (!info.phone) return { ok: true, phone: "", pickup: info.pickup || "現場等候" };
+
+  try {
+    const res = await apiPost("updateSessionInfo", {
+      tableNo: TABLE_NO,
+      sessionId: localStorage.getItem(LS_SESSION) || "",
+      customer_phone: info.phone,
+      phone: info.phone,
+      customerPhone: info.phone,
+      pickup_time: info.pickup || "現場等候",
+      pickupTime: info.pickup || "現場等候",
+      takeout_note: "電話：" + info.phone + "｜取餐：" + (info.pickup || "現場等候")
+    }, 45000);
+    if (!silent) alert(res && res.ok ? "已儲存外帶資料" : "儲存失敗：" + (res && res.message ? res.message : ""));
+    return res || { ok: true };
+  } catch (err) {
+    if (!silent) alert("儲存失敗：" + (err && err.message ? err.message : err));
+    return { ok: false, message: err && err.message ? err.message : String(err) };
+  }
+}
+
 function renderTakeoutBox() {
   const box = document.getElementById("takeoutBox");
   if (TABLE_NO !== "TO") {
@@ -78,38 +122,22 @@ function renderTakeoutBox() {
 
   const phone = localStorage.getItem(LS_PHONE) || "";
   const pickup = localStorage.getItem(LS_PICKUP) || "";
+  const pickupValue = pickup === "現場等候" ? "" : pickup;
 
   box.innerHTML = `
     <div class="card takeout-box">
       <div class="section-title">🥡 外帶資料</div>
+      <div class="meta">手機可填可不填；取餐時間不填就是「現場等候」。</div>
       <label>手機號碼</label>
-      <input id="takeoutPhone" value="${attr(phone)}" placeholder="09xxxxxxxx">
+      <input id="takeoutPhone" value="${attr(phone)}" placeholder="09xxxxxxxx，可不填">
       <label>預計取餐時間</label>
-      <input id="pickupTime" value="${attr(pickup)}" placeholder="例如 15:30">
+      <input id="pickupTime" value="${attr(pickupValue)}" placeholder="不填＝現場等候，例如 15:30">
       <button class="btn-main" onclick="saveTakeoutInfo()">儲存外帶資料</button>
     </div>`;
 }
 
 async function saveTakeoutInfo() {
-  const phone = document.getElementById("takeoutPhone").value.trim();
-  const pickup = document.getElementById("pickupTime").value.trim();
-
-  if (!phone || !pickup) {
-    alert("外帶請填手機號碼與取餐時間");
-    return;
-  }
-
-  localStorage.setItem(LS_PHONE, phone);
-  localStorage.setItem(LS_PICKUP, pickup);
-
-  const res = await apiPost("updateSessionInfo", {
-    tableNo: TABLE_NO,
-    sessionId: localStorage.getItem(LS_SESSION) || "",
-    customer_phone: phone,
-    pickup_time: pickup
-  });
-
-  alert(res && res.ok ? "已儲存外帶資料" : "儲存失敗：" + (res && res.message ? res.message : ""));
+  await syncTakeoutInfo(false);
 }
 
 function renderMenu() {
@@ -234,14 +262,7 @@ async function addDraftItem(id) {
     return;
   }
 
-  if (TABLE_NO === "TO") {
-    const phone = localStorage.getItem(LS_PHONE) || "";
-    const pickup = localStorage.getItem(LS_PICKUP) || "";
-    if (!phone || !pickup) {
-      alert("外帶請先填手機號碼與取餐時間");
-      return;
-    }
-  }
+  const takeoutInfo = TABLE_NO === "TO" ? saveTakeoutLocal() : { phone: "", pickup: "" };
 
   const btn = document.getElementById("addbtn-" + id);
   addLocks[id] = true;
@@ -254,6 +275,8 @@ async function addDraftItem(id) {
   showToast("加入中，請稍候…");
 
   try {
+    if (TABLE_NO === "TO") await syncTakeoutInfo(true);
+
     const noteEl = document.getElementById("note-" + id);
     const tags = getTagsForItem(id);
 
@@ -264,8 +287,11 @@ async function addDraftItem(id) {
       qty,
       note: noteEl ? noteEl.value : "",
       custom_tags: tags.join(" / "),
-      customer_phone: localStorage.getItem(LS_PHONE) || "",
-      pickup_time: localStorage.getItem(LS_PICKUP) || ""
+      customer_phone: takeoutInfo.phone || "",
+      phone: takeoutInfo.phone || "",
+      customerPhone: takeoutInfo.phone || "",
+      pickup_time: takeoutInfo.pickup || "現場等候",
+      pickupTime: takeoutInfo.pickup || "現場等候"
     }, 45000);
 
     if (!res || res.ok === false) {
@@ -277,6 +303,7 @@ async function addDraftItem(id) {
     state.draftTags[id] = {};
     if (noteEl) noteEl.value = "";
 
+    if (res.sessionId) localStorage.setItem(LS_SESSION, res.sessionId);
     if (res.cart) {
       state.cart = res.cart;
       renderCart();
@@ -353,9 +380,12 @@ function renderOpenOrders() {
 
   let html = '<div class="orders-box"><b>✅ 已送出給店家</b>';
   orders.forEach(order => {
+    const info = [];
+    if (cleanText(order.customer_phone || order.phone)) info.push("電話：" + cleanText(order.customer_phone || order.phone));
+    if (cleanText(order.pickup_time || order.pickupTime)) info.push("取餐：" + cleanText(order.pickup_time || order.pickupTime));
     html += `
       <div class="cart-line sent">
-        <div><b>${esc(order.batch_label || order.order_id)}</b><br>${esc(order.items_text || "")}</div>
+        <div><b>${esc(order.batch_label || order.order_id)}</b><br>${info.length ? esc(info.join("｜")) + "<br>" : ""}${esc(order.items_text || "")}</div>
         <div>${money(order.total_amount)}</div>
       </div>`;
   });
@@ -440,19 +470,16 @@ async function submitOrder(e) {
 
   if (submitLock) return;
 
-  if (!state.cart.items.length) {
-    alert("購物車是空的");
+  if (!state.cart || !Array.isArray(state.cart.items) || !state.cart.items.length) {
+    await loadData();
+  }
+
+  if (!state.cart || !Array.isArray(state.cart.items) || !state.cart.items.length) {
+    alert("購物車是空的，請先加入商品");
     return;
   }
 
-  if (TABLE_NO === "TO") {
-    const phone = localStorage.getItem(LS_PHONE) || "";
-    const pickup = localStorage.getItem(LS_PICKUP) || "";
-    if (!phone || !pickup) {
-      alert("外帶請先填手機號碼與取餐時間");
-      return;
-    }
-  }
+  const takeoutInfo = TABLE_NO === "TO" ? saveTakeoutLocal() : { phone: "", pickup: "" };
 
   if (!await showConfirm("確定送出訂單？")) return;
 
@@ -467,11 +494,17 @@ async function submitOrder(e) {
   showToast("送出中，請稍候…");
 
   try {
+    if (TABLE_NO === "TO") await syncTakeoutInfo(true);
+
     const r = await apiPost("submitCart", {
       tableNo: TABLE_NO,
       sessionId: localStorage.getItem(LS_SESSION) || "",
-      customer_phone: localStorage.getItem(LS_PHONE) || "",
-      pickup_time: localStorage.getItem(LS_PICKUP) || ""
+      customer_phone: takeoutInfo.phone || "",
+      phone: takeoutInfo.phone || "",
+      customerPhone: takeoutInfo.phone || "",
+      pickup_time: takeoutInfo.pickup || "現場等候",
+      pickupTime: takeoutInfo.pickup || "現場等候",
+      takeout_note: TABLE_NO === "TO" ? ("電話：" + (takeoutInfo.phone || "未填") + "｜取餐：" + (takeoutInfo.pickup || "現場等候")) : ""
     }, 45000);
 
     if (!r || r.ok === false) {
