@@ -84,7 +84,7 @@ function renderTakeoutBox() {
       <div class="section-title">🥡 外帶資料</div>
       <label>手機號碼</label>
       <input id="takeoutPhone" value="${attr(phone)}" placeholder="09xxxxxxxx">
-      <label>預計取餐時間</label>
+      <label>預計取餐時間（可留空）</label>
       <input id="pickupTime" value="${attr(pickup)}" placeholder="例如 15:30">
       <button class="btn-main" onclick="saveTakeoutInfo()">儲存外帶資料</button>
     </div>`;
@@ -94,19 +94,23 @@ async function saveTakeoutInfo() {
   const phone = document.getElementById("takeoutPhone").value.trim();
   const pickup = document.getElementById("pickupTime").value.trim();
 
-  if (!phone || !pickup) {
-    alert("外帶請填手機號碼與取餐時間");
+  if (!phone) {
+    alert("外帶請填手機號碼");
     return;
   }
 
   localStorage.setItem(LS_PHONE, phone);
-  localStorage.setItem(LS_PICKUP, pickup);
+  if (pickup) {
+    localStorage.setItem(LS_PICKUP, pickup);
+  } else {
+    localStorage.removeItem(LS_PICKUP);
+  }
 
   const res = await apiPost("updateSessionInfo", {
     tableNo: TABLE_NO,
     sessionId: localStorage.getItem(LS_SESSION) || "",
     customer_phone: phone,
-    pickup_time: pickup
+    pickup_time: pickup || null
   });
 
   alert(res && res.ok ? "已儲存外帶資料" : "儲存失敗：" + (res && res.message ? res.message : ""));
@@ -236,9 +240,8 @@ async function addDraftItem(id) {
 
   if (TABLE_NO === "TO") {
     const phone = localStorage.getItem(LS_PHONE) || "";
-    const pickup = localStorage.getItem(LS_PICKUP) || "";
-    if (!phone || !pickup) {
-      alert("外帶請先填手機號碼與取餐時間");
+    if (!phone) {
+      alert("外帶請先填手機號碼");
       return;
     }
   }
@@ -265,7 +268,7 @@ async function addDraftItem(id) {
       note: noteEl ? noteEl.value : "",
       custom_tags: tags.join(" / "),
       customer_phone: localStorage.getItem(LS_PHONE) || "",
-      pickup_time: localStorage.getItem(LS_PICKUP) || ""
+      pickup_time: localStorage.getItem(LS_PICKUP) || null
     }, 45000);
 
     if (!res || res.ok === false) {
@@ -447,9 +450,8 @@ async function submitOrder(e) {
 
   if (TABLE_NO === "TO") {
     const phone = localStorage.getItem(LS_PHONE) || "";
-    const pickup = localStorage.getItem(LS_PICKUP) || "";
-    if (!phone || !pickup) {
-      alert("外帶請先填手機號碼與取餐時間");
+    if (!phone) {
+      alert("外帶請先填手機號碼");
       return;
     }
   }
@@ -471,7 +473,7 @@ async function submitOrder(e) {
       tableNo: TABLE_NO,
       sessionId: localStorage.getItem(LS_SESSION) || "",
       customer_phone: localStorage.getItem(LS_PHONE) || "",
-      pickup_time: localStorage.getItem(LS_PICKUP) || ""
+      pickup_time: localStorage.getItem(LS_PICKUP) || null
     }, 45000);
 
     if (!r || r.ok === false) {
