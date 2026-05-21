@@ -132,16 +132,16 @@ function renderTakeoutBox() {
     return;
   }
 
-  const phone = localStorage.getItem(LS_PHONE) || "";
-  const pickup = localStorage.getItem(LS_PICKUP) || "";
-  const pickupValue = pickup === "現場等候" ? "" : pickup;
+  const savedPhone = localStorage.getItem(LS_PHONE) || "";
+  const savedPickup = localStorage.getItem(LS_PICKUP) || "";
+  const pickupValue = savedPickup === "現場等候" ? "" : savedPickup;
 
   box.innerHTML = `
     <div class="card takeout-box">
       <div class="section-title">🥡 外帶資料</div>
       <div class="meta">手機號碼必填；取餐時間不填就是「現場等候」。</div>
       <label>手機號碼</label>
-      <input id="takeoutPhone" value="${attr(phone)}" placeholder="09xxxxxxxx，必填">
+      <input id="takeoutPhone" value="${attr(savedPhone)}" placeholder="09xxxxxxxx，必填">
       <label>預計取餐時間</label>
       <input id="pickupTime" value="${attr(pickupValue)}" placeholder="不填＝現場等候，例如 15:30">
       <button class="btn-main" onclick="saveTakeoutInfo()">儲存外帶資料</button>
