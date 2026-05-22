@@ -31,14 +31,17 @@ function cleanText(v) {
   const s = String(v || "").trim();
   if (!s) return "";
   if (isDateGarbage(s)) return "";
+  if (s.includes("__web-inspector-hide-shortcut__")) return "";
   return s;
 }
 function normalizeApiData(d) {
   if (!d || typeof d !== "object") return d || {};
   if (!d.cart && d["購物車"]) d.cart = d["購物車"];
+
   if (Array.isArray(d.menu)) d.menu = d.menu.map(normalizeMenuItem);
+
   if (d.cart && Array.isArray(d.cart.items)) {
-    d.cart.items = d.cart.items.map(normalizeCartItem);
+    d.cart.items = d.cart.items.map(normalizeCartItem).filter(x => x.name);
     d.cart.total = Number(
       d.cart.total ||
       d.cart["總計"] ||
@@ -48,12 +51,15 @@ function normalizeApiData(d) {
   } else if (!d.cart) {
     d.cart = { items: [], total: 0 };
   }
+
   if (Array.isArray(d.openOrders)) {
     d.openOrders = d.openOrders.map(o => ({
       order_id: o.order_id || o["訂單編號"] || "",
       batch_label: o.batch_label || o["批次"] || "",
       items_text: o.items_text || o["明細"] || "",
-      total_amount: Number(o.total_amount || o["總金額"] || 0)
+      total_amount: Number(o.total_amount || o["總金額"] || 0),
+      customer_phone: o.customer_phone || o.phone || o.customerPhone || "",
+      pickup_time: o.pickup_time || o.pickupTime || ""
     }));
   }
   return d;
@@ -64,7 +70,7 @@ function normalizeMenuItem(i) {
     ? String(i.custom_options || "")
     : "";
   return {
-    id: String(i.id || i.ID || ""),
+    id: String(i.id || i.ID || i["ID"] || ""),
     category: String(i.category || i["類別"] || "其他"),
     name: String(i.name || i["名稱"] || i["品名"] || ""),
     price: Number(i.price || i["價格"] || 0),
@@ -75,39 +81,45 @@ function normalizeMenuItem(i) {
     note: String(i.note || i["備註"] || ""),
     sort: Number(i.sort || i["排序"] || 9999),
     image_url: String(i.image_url || i["圖片"] || imageFromCustom || ""),
-    sweet_options: String(i.sweet_options || ""),
-    temp_options: String(i.temp_options || ""),
-    custom_options: imageFromCustom ? "" : String(i.custom_options || "")
+    sweet_options: String(i.sweet_options || i["甜度"] || ""),
+    temp_options: String(i.temp_options || i["溫度"] || i["冰量"] || ""),
+    custom_options: imageFromCustom ? "" : String(i.custom_options || i["客製化"] || "")
   };
 }
 function normalizeCartItem(i) {
   i = i || {};
   const customText = cleanText(i.custom_text || i.custom_tags || "");
   const note = cleanText(i.note || i["備註"] || "");
+  const qty = Math.max(1, Number(i.qty || i["數量"] || 1));
+  const price = Number(i.price || i["價格"] || 0);
+  const firstCartId = Array.isArray(i.cart_ids) && i.cart_ids.length ? i.cart_ids[0] : "";
   return {
-    cart_id: String(i.cart_id || i["購物車ID"] || ""),
+    cart_id: String(i.cart_id || firstCartId || i["購物車ID"] || ""),
+    cart_ids: Array.isArray(i.cart_ids) ? i.cart_ids : [],
     item_id: String(i.item_id || ""),
     name: cleanText(i.name || i["名稱"] || i["品名"]),
-    price: Number(i.price || i["價格"] || 0),
-    qty: Math.max(1, Number(i.qty || i["數量"] || 1)),
+    price,
+    qty,
     note,
     custom_tags: cleanText(i.custom_tags || ""),
     custom_text: customText,
     image_url: String(i.image_url || i["圖片"] || ""),
-    subtotal: Number(i.subtotal || i["小計"] || 0)
+    subtotal: Number(i.subtotal || i["小計"] || price * qty)
   };
 }
 async function apiGet(action, params = {}, timeoutMs = 30000) {
+  if (!API_URL) throw new Error("缺少 API_URL");
   const url = new URL(API_URL);
   url.searchParams.set("action", action);
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, v);
   });
-  return fetchWithTimeout(url.toString(), { method: "GET" }, timeoutMs)
+  return fetchWithTimeout(url.toString(), { method: "GET", cache: "no-store" }, timeoutMs)
     .then(parseJson)
     .then(normalizeApiData);
 }
 async function apiPost(action, payload = {}, timeoutMs = 30000) {
+  if (!API_URL) throw new Error("缺少 API_URL");
   return fetchWithTimeout(API_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -141,6 +153,11 @@ function setLogo() {
   const img = document.getElementById("logo");
   const fb = document.getElementById("logoFallback");
   if (!img) return;
+  if (!LOGO_URL) {
+    img.style.display = "none";
+    if (fb) fb.style.display = "flex";
+    return;
+  }
   img.src = LOGO_URL + (LOGO_URL.includes("?") ? "&" : "?") + "v=" + Date.now();
   img.onerror = () => {
     img.style.display = "none";
