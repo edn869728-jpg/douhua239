@@ -1,4 +1,5 @@
 const TABLE_NO = qs("table", "A1").trim().toUpperCase();
+const IS_TAKEOUT = TABLE_NO === "TO";
 const LS_SESSION = "douhua_session_" + TABLE_NO;
 const LS_PHONE = "douhua_phone_" + TABLE_NO;
 const LS_PICKUP = "douhua_pickup_" + TABLE_NO;
@@ -12,7 +13,7 @@ addEventListener("load", init);
 function init() {
   setLogo();
   document.getElementById("shopName").textContent = SHOP_NAME;
-  document.getElementById("tableLabel").textContent = TABLE_NO === "TO" ? "外帶" : TABLE_NO + "桌";
+  document.getElementById("tableLabel").textContent = IS_TAKEOUT ? "外帶" : TABLE_NO + "桌";
   loadData();
 }
 
@@ -74,14 +75,11 @@ function getTakeoutInfoFromUi() {
   const pickupEl = document.getElementById("pickupTime");
   const phone = phoneEl ? phoneEl.value.trim() : (localStorage.getItem(LS_PHONE) || "");
   const pickupRaw = pickupEl ? pickupEl.value.trim() : (localStorage.getItem(LS_PICKUP) || "");
-  return {
-    phone,
-    pickup: pickupRaw || "現場等候"
-  };
+  return { phone, pickup: pickupRaw || "現場等候" };
 }
 
 function saveTakeoutLocal() {
-  if (TABLE_NO !== "TO") return { phone: "", pickup: "" };
+  if (!IS_TAKEOUT) return { phone: "", pickup: "" };
   const info = getTakeoutInfoFromUi();
   if (info.phone) localStorage.setItem(LS_PHONE, info.phone);
   else localStorage.removeItem(LS_PHONE);
@@ -90,7 +88,7 @@ function saveTakeoutLocal() {
 }
 
 function requireTakeoutPhone() {
-  if (TABLE_NO !== "TO") return true;
+  if (!IS_TAKEOUT) return true;
   const info = saveTakeoutLocal();
   if (!info.phone) {
     alert("外帶請輸入電話號碼");
@@ -102,7 +100,7 @@ function requireTakeoutPhone() {
 }
 
 async function syncTakeoutInfo(silent = true) {
-  if (TABLE_NO !== "TO") return { ok: true };
+  if (!IS_TAKEOUT) return { ok: true };
   const info = saveTakeoutLocal();
   if (!info.phone) return { ok: false, message: "外帶請輸入電話號碼" };
 
@@ -127,7 +125,7 @@ async function syncTakeoutInfo(silent = true) {
 
 function renderTakeoutBox() {
   const box = document.getElementById("takeoutBox");
-  if (TABLE_NO !== "TO") {
+  if (!IS_TAKEOUT) {
     box.innerHTML = "";
     return;
   }
@@ -275,8 +273,8 @@ async function addDraftItem(id) {
     return;
   }
 
-  if (!requireTakeoutPhone()) return;
-  const takeoutInfo = TABLE_NO === "TO" ? saveTakeoutLocal() : { phone: "", pickup: "" };
+  if (IS_TAKEOUT && !requireTakeoutPhone()) return;
+  const takeoutInfo = IS_TAKEOUT ? saveTakeoutLocal() : { phone: "", pickup: "" };
 
   const btn = document.getElementById("addbtn-" + id);
   addLocks[id] = true;
@@ -289,24 +287,29 @@ async function addDraftItem(id) {
   showToast("加入中，請稍候…");
 
   try {
-    if (TABLE_NO === "TO") await syncTakeoutInfo(true);
+    if (IS_TAKEOUT) await syncTakeoutInfo(true);
 
     const noteEl = document.getElementById("note-" + id);
     const tags = getTagsForItem(id);
 
-    const res = await apiPost("addCartItem", {
+    const payload = {
       tableNo: TABLE_NO,
       sessionId: localStorage.getItem(LS_SESSION) || "",
       itemId: id,
       qty,
       note: noteEl ? noteEl.value : "",
-      custom_tags: tags.join(" / "),
-      customer_phone: takeoutInfo.phone || "",
-      phone: takeoutInfo.phone || "",
-      customerPhone: takeoutInfo.phone || "",
-      pickup_time: takeoutInfo.pickup || "現場等候",
-      pickupTime: takeoutInfo.pickup || "現場等候"
-    }, 45000);
+      custom_tags: tags.join(" / ")
+    };
+
+    if (IS_TAKEOUT) {
+      payload.customer_phone = takeoutInfo.phone || "";
+      payload.phone = takeoutInfo.phone || "";
+      payload.customerPhone = takeoutInfo.phone || "";
+      payload.pickup_time = takeoutInfo.pickup || "現場等候";
+      payload.pickupTime = takeoutInfo.pickup || "現場等候";
+    }
+
+    const res = await apiPost("addCartItem", payload, 45000);
 
     if (!res || res.ok === false) {
       alert("加入失敗：" + (res && res.message ? res.message : ""));
@@ -493,8 +496,8 @@ async function submitOrder(e) {
     return;
   }
 
-  if (!requireTakeoutPhone()) return;
-  const takeoutInfo = TABLE_NO === "TO" ? saveTakeoutLocal() : { phone: "", pickup: "" };
+  if (IS_TAKEOUT && !requireTakeoutPhone()) return;
+  const takeoutInfo = IS_TAKEOUT ? saveTakeoutLocal() : { phone: "", pickup: "" };
 
   if (!await showConfirm("確定送出訂單？")) return;
 
@@ -509,18 +512,23 @@ async function submitOrder(e) {
   showToast("送出中，請稍候…");
 
   try {
-    if (TABLE_NO === "TO") await syncTakeoutInfo(true);
+    if (IS_TAKEOUT) await syncTakeoutInfo(true);
 
-    const r = await apiPost("submitCart", {
+    const payload = {
       tableNo: TABLE_NO,
-      sessionId: localStorage.getItem(LS_SESSION) || "",
-      customer_phone: takeoutInfo.phone || "",
-      phone: takeoutInfo.phone || "",
-      customerPhone: takeoutInfo.phone || "",
-      pickup_time: takeoutInfo.pickup || "現場等候",
-      pickupTime: takeoutInfo.pickup || "現場等候",
-      takeout_note: TABLE_NO === "TO" ? ("電話：" + (takeoutInfo.phone || "未填") + "｜取餐：" + (takeoutInfo.pickup || "現場等候")) : ""
-    }, 45000);
+      sessionId: localStorage.getItem(LS_SESSION) || ""
+    };
+
+    if (IS_TAKEOUT) {
+      payload.customer_phone = takeoutInfo.phone || "";
+      payload.phone = takeoutInfo.phone || "";
+      payload.customerPhone = takeoutInfo.phone || "";
+      payload.pickup_time = takeoutInfo.pickup || "現場等候";
+      payload.pickupTime = takeoutInfo.pickup || "現場等候";
+      payload.takeout_note = "電話：" + (takeoutInfo.phone || "未填") + "｜取餐：" + (takeoutInfo.pickup || "現場等候");
+    }
+
+    const r = await apiPost("submitCart", payload, 45000);
 
     if (!r || r.ok === false) {
       alert("送出失敗：" + (r && r.message ? r.message : ""));
